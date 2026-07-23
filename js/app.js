@@ -197,23 +197,162 @@ const App = {
 
   // ==================== 分享 ====================
   shareReport() {
-    if (navigator.share) {
+    const isWechat = /MicroMessenger/i.test(navigator.userAgent);
+
+    if (isWechat) {
+      // 微信浏览器：无法直接调起分享，引导用户点击右上角 ···
+      document.getElementById("modal-share-guide").classList.add("active");
+    } else if (navigator.share) {
+      // 现代浏览器：使用 Web Share API
       navigator.share({
         title: "AI天赋地图 — 我的能力画像",
         text: "我刚完成了多元智能测评，发现了自己的隐藏优势！你也来测测？",
         url: window.location.href
-      }).catch(() => {});
+      }).catch(() => {
+        // 用户取消分享或失败，降级到复制链接
+        this.copyShareLink();
+      });
     } else {
-      // 复制链接
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        alert("链接已复制！分享给朋友让他们也来测试吧 ✨");
-      }).catch(() => {});
+      // 不支持 Web Share：直接复制链接
+      this.copyShareLink();
     }
   },
 
-  // ==================== PDF下载 ====================
-  downloadPDF() {
-    window.print();
+  copyShareLink() {
+    const url = window.location.href;
+    // 优先用 Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => {
+        this.showToast("链接已复制，去粘贴分享吧 ✨");
+      }).catch(() => {
+        this.showCopyFallback(url);
+      });
+    } else {
+      this.showCopyFallback(url);
+    }
+  },
+
+  showCopyFallback(url) {
+    // 兜底：选中文本让用户手动复制
+    const input = document.createElement("textarea");
+    input.value = url;
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand("copy");
+    document.body.removeChild(input);
+    this.showToast("链接已复制，去粘贴分享吧 ✨");
+  },
+
+  closeShareGuide() {
+    document.getElementById("modal-share-guide").classList.remove("active");
+  },
+
+  showToast(msg) {
+    // 轻量 toast，自动消失
+    const existing = document.querySelector(".toast-msg");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.className = "toast-msg";
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+
+    // 触发动画
+    requestAnimationFrame(() => toast.classList.add("show"));
+
+    setTimeout(() => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 300);
+    }, 2500);
+  },
+
+  // ==================== 保存报告（生成图片） ====================
+  saveReport() {
+    const el = document.getElementById("report-content");
+    if (!el || !el.innerHTML) {
+      this.showToast("报告内容为空，请先生成报告");
+      return;
+    }
+
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    this.showToast("正在生成报告图片...");
+
+    // 先隐藏 actions 按钮区域，避免截进图片里
+    const actions = document.getElementById("report-actions");
+    const actionsDisplay = actions ? actions.style.display : "";
+    if (actions) actions.style.display = "none";
+
+    // 截图前让报告区域撑开，去掉可能的滚动裁剪
+    const container = document.getElementById("report-container");
+    const origOverflow = container ? container.style.overflow : "";
+    const origMaxH = container ? container.style.maxHeight : "";
+    if (container) {
+      container.style.overflow = "visible";
+      container.style.maxHeight = "none";
+    }
+
+    html2canvas(el, {
+      backgroundColor: "#0F0F1A",   // 和页面背景色一致
+      scale: isMobile ? 2 : 1.5,    // 手机端 2x 高清
+      useCORS: true,
+      logging: false
+    }).then(canvas => {
+      // 恢复原样式
+      if (actions) actions.style.display = actionsDisplay;
+      if (container) {
+        container.style.overflow = origOverflow;
+        container.style.maxHeight = origMaxH;
+      }
+
+      const imgData = canvas.toDataURL("image/png");
+      this._reportImageData = imgData;
+
+      if (isMobile) {
+        // 手机端：弹窗展示，用户长按保存
+        document.getElementById("report-image").src = imgData;
+        document.getElementById("modal-image-preview").classList.add("active");
+        // 手机端隐藏下载按钮，引导长按
+        document.getElementById("btn-download-image").style.display = "none";
+        document.querySelector(".toast-msg")?.remove();
+      } else {
+        // 桌面端：直接触发下载
+        this.downloadImage(imgData);
+        document.querySelector(".toast-msg")?.remove();
+      }
+    }).catch(err => {
+      if (actions) actions.style.display = actionsDisplay;
+      if (container) {
+        container.style.overflow = origOverflow;
+        container.style.maxHeight = origMaxH;
+      }
+      console.error("生成图片失败:", err);
+      this.showToast("生成图片失败，请重试");
+    });
+  },
+
+  closeImagePreview() {
+    document.getElementById("modal-image-preview").classList.remove("active");
+  },
+
+  downloadImage(imgData) {
+    const data = imgData || this._reportImageData;
+    if (!data) return;
+
+    const a = document.createElement("a");
+    a.href = data;
+    a.download = "AI天赋地图-我的能力画像.png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    if (!imgData) {
+      // 从弹窗里点下载，顺手关掉弹窗
+      this.closeImagePreview();
+    }
+    this.showToast("报告图片已保存 ✅");
   },
 
   // ==================== 键盘操作 ====================

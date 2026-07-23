@@ -141,7 +141,7 @@
             <li>🎓 个性化大学专业推荐（含推荐理由）</li>
             <li>🗺️ 12个月分阶段成长计划</li>
             <li>⚠️ 能力盲区预警与提升建议</li>
-            <li>📄 精美PDF报告下载</li>
+            <li>📄 精美报告图片保存</li>
           </ul>
           <div class="paywall-price">
             <span class="price-symbol">¥</span>
@@ -168,7 +168,7 @@
     </div>
     <div class="report-actions" id="report-actions" style="display:none;">
       <button class="btn-action btn-share" onclick="App.shareReport()">📤 分享报告</button>
-      <button class="btn-action btn-pdf" onclick="App.downloadPDF()">📥 下载PDF</button>
+      <button class="btn-action btn-pdf" onclick="App.saveReport()">📥 保存报告</button>
       <button class="btn-action btn-retest" onclick="App.restart()">🔄 重新测评</button>
     </div>
   </div>
@@ -203,7 +203,38 @@
     </div>
   </div>
 
+  <!-- ==================== 报告图片预览弹窗 ==================== -->
+  <div id="modal-image-preview" class="modal">
+    <div class="image-preview-container">
+      <div class="image-preview-header">
+        <span>📸 长按图片保存到相册</span>
+        <button class="image-preview-close" onclick="App.closeImagePreview()">✕</button>
+      </div>
+      <div class="image-preview-body" id="image-preview-body">
+        <img id="report-image" src="" alt="AI天赋报告" />
+      </div>
+      <div class="image-preview-actions">
+        <button class="btn-action btn-share" id="btn-download-image" onclick="App.downloadImage()">💾 下载图片</button>
+        <button class="btn-modal btn-cancel" onclick="App.closeImagePreview()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 微信分享引导弹窗 ==================== -->
+  <div id="modal-share-guide" class="modal">
+    <div class="share-guide-overlay" onclick="App.closeShareGuide()">
+      <div class="share-guide-content" onclick="event.stopPropagation()">
+        <div class="share-guide-arrow">👆</div>
+        <h3>点击右上角 <span class="share-dots">···</span></h3>
+        <p>选择「<strong>分享给朋友</strong>」或「<strong>分享到朋友圈</strong>」</p>
+        <div class="share-guide-tip">让你的朋友也来发现自己隐藏的天赋吧 ✨</div>
+        <button class="btn-modal btn-confirm-pay" onclick="App.closeShareGuide()" style="margin-top:16px;width:100%;">我知道了</button>
+      </div>
+    </div>
+  </div>
+
   <!-- JS -->
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <script src="js/questions.js"></script>
   <script src="js/scoring.js"></script>
   <script src="js/chart.js"></script>
