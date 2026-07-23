@@ -4,15 +4,9 @@
 
 const Report = {
 
-  /**
-   * 渲染免费结果页
-   * @param {Object} scores
-   */
   renderFreeResult(scores) {
-    // 绘制雷达图
     RadarChart.draw("radar-chart", scores);
 
-    // 渲染前三优势
     const topThree = Scoring.getTopThree(scores);
     const strengthsEl = document.getElementById("top-strengths");
     strengthsEl.innerHTML = topThree.map((item, i) => {
@@ -32,7 +26,6 @@ const Report = {
       `;
     }).join("");
 
-    // 渲染人格类型
     const persona = Scoring.getPersona(scores);
     document.getElementById("persona-badge").innerHTML = `
       <div class="persona-label">你的人格类型</div>
@@ -40,10 +33,6 @@ const Report = {
     `;
   },
 
-  /**
-   * 渲染完整AI报告
-   * @param {Object} reportData - 来自AI或本地回退的报告
-   */
   renderFullReport(reportData) {
     const container = document.getElementById("report-content");
     const loading = document.getElementById("report-loading");
@@ -53,30 +42,42 @@ const Report = {
       return;
     }
 
+    console.log("[Report] renderFullReport called, data keys:", Object.keys(reportData));
+    console.log("[Report] allDimensions:", reportData.allDimensions);
+
     loading.style.display = "none";
     document.getElementById("report-actions").style.display = "flex";
 
     const { persona, allDimensions, majors, growthPlan, summary } = reportData;
 
-    // 用 DIMENSION_NAMES 补齐维度信息（AI返回的数据缺少icon/name/color）
-    const enrichedDims = allDimensions.map(dim => {
+    // 用 DIMENSION_NAMES 补齐维度信息
+    const enrichedDims = (allDimensions || []).map(dim => {
       const meta = DIMENSION_NAMES[dim.key] || {};
       return {
         ...dim,
         icon: dim.icon || meta.icon || "📊",
         name: dim.name || meta.name || dim.key,
         color: dim.color || meta.color || "#9898B0",
-        description: dim.analysis || dim.description || ""
+        description: dim.analysis || dim.description || "",
+        score: parseInt(dim.score) || 0
       };
     });
 
-    // 构建雷达图需要的得分对象
+    // 如果 enrichedDims 为空，用 localStorage 里存的结果补
+    if (enrichedDims.length === 0 && App.state.scores) {
+      const fallback = Scoring.getSortedScores(App.state.scores);
+      fallback.forEach(d => enrichedDims.push(d));
+    }
+
+    // 构建雷达图数据
     const allScores = {};
     enrichedDims.forEach(dim => {
-      allScores[dim.key] = dim.score;
+      allScores[dim.key] = parseInt(dim.score) || 0;
     });
 
-    // 按分数降序排列
+    console.log("[Report] allScores:", allScores);
+
+    // 按分数降序
     enrichedDims.sort((a, b) => b.score - a.score);
 
     let html = "";
@@ -95,12 +96,14 @@ const Report = {
           </span>
         </div>
         <p style="margin-top:16px;">${persona.description}</p>
-        <p style="margin-top:8px;font-size:0.85rem;color:var(--primary-light);">
-          <strong>核心优势：</strong>${persona.strengths ? persona.strengths.join('、') : ''}
-        </p>
-        <p style="font-size:0.85rem;color:#FF6B6B;">
-          <strong>注意盲区：</strong>${persona.watchOut ? persona.watchOut.join('、') : ''}
-        </p>
+        ${persona.strengths && persona.strengths.length ? `
+          <p style="margin-top:8px;font-size:0.85rem;color:var(--primary-light);">
+            <strong>核心优势：</strong>${persona.strengths.join('、')}
+          </p>` : ''}
+        ${persona.watchOut && persona.watchOut.length ? `
+          <p style="font-size:0.85rem;color:#FF6B6B;">
+            <strong>注意盲区：</strong>${persona.watchOut.join('、')}
+          </p>` : ''}
       </div>
     `;
 
@@ -109,17 +112,17 @@ const Report = {
     enrichedDims.forEach((dim) => {
       const level = dim.score >= 80 ? "🔥 突出优势" : dim.score >= 60 ? "👍 良好水平" : dim.score >= 40 ? "📈 发展空间" : "⚠️ 需要关注";
       html += `
-        <div style="margin-bottom:16px;">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
             <span style="font-size:1.3rem;">${dim.icon}</span>
             <strong>${dim.name}</strong>
             <span style="color:${dim.color};font-weight:700;">${dim.score}分</span>
             <span style="font-size:0.75rem;color:var(--text-muted);">${level}</span>
           </div>
-          <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
-            <div style="height:100%;width:${dim.score}%;background:${dim.color};border-radius:3px;"></div>
+          <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:6px;">
+            <div style="height:100%;width:${dim.score}%;background:${dim.color};border-radius:4px;transition:width 1s ease;"></div>
           </div>
-          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${dim.description}</p>
+          <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">${dim.description}</p>
         </div>
       `;
     });
@@ -129,7 +132,7 @@ const Report = {
     html += `<div class="report-section"><h3>🎓 大学专业推荐</h3>`;
     html += `<p style="margin-bottom:12px;">基于你的能力画像，以下专业与你的匹配度最高：</p>`;
     html += `<ul class="major-list">`;
-    majors.forEach(m => {
+    (majors || []).forEach(m => {
       const stars = "★".repeat(m.stars) + "☆".repeat(5 - m.stars);
       html += `
         <li class="major-item">
@@ -144,34 +147,38 @@ const Report = {
     html += `</div>`;
 
     // --- 4. 12个月成长计划 ---
-    html += `<div class="report-section"><h3>🗺️ 12个月成长计划</h3>`;
-    html += `<p style="margin-bottom:16px;">你的最强维度：<strong style="color:var(--primary-light);">${growthPlan.strongestDimension}</strong> | 需要关注：<strong style="color:#FF6B6B;">${growthPlan.weakestDimension}</strong></p>`;
-    html += `<div class="growth-timeline">`;
-    growthPlan.phases.forEach(phase => {
-      html += `
-        <div class="growth-phase">
-          <h4>${phase.period}</h4>
-          ${phase.tasks.map(t => `<p>✅ ${t}</p>`).join("")}
-        </div>
-      `;
-    });
-    html += `</div></div>`;
+    if (growthPlan) {
+      html += `<div class="report-section"><h3>🗺️ 12个月成长计划</h3>`;
+      html += `<p style="margin-bottom:16px;">你的最强维度：<strong style="color:var(--primary-light);">${growthPlan.strongestDimension}</strong> | 需要关注：<strong style="color:#FF6B6B;">${growthPlan.weakestDimension}</strong></p>`;
+      html += `<div class="growth-timeline">`;
+      (growthPlan.phases || []).forEach(phase => {
+        html += `
+          <div class="growth-phase">
+            <h4>${phase.period}</h4>
+            ${(phase.tasks || []).map(t => `<p>✅ ${t}</p>`).join("")}
+          </div>
+        `;
+      });
+      html += `</div></div>`;
+    }
 
     // --- 5. 盲区预警 ---
-    const weakest = enrichedDims[enrichedDims.length - 1];
-    const secondWeakest = enrichedDims[enrichedDims.length - 2];
-    html += `
-      <div class="report-section">
-        <h3>⚠️ 能力盲区预警</h3>
-        <p>你的<strong style="color:#FF6B6B;">${weakest.name}（${weakest.score}分）</strong>和<strong style="color:#FF6B6B;">${secondWeakest.name}（${secondWeakest.score}分）</strong>相对较弱，这并不代表你不擅长，只是相比你的优势维度需要更多关注：</p>
-        <p style="margin-top:8px;">建议：</p>
-        <p>• 在选专业时避免以这两个能力为核心竞争力的方向</p>
-        <p>• 有意识地在日常生活中练习这两个维度的相关技能</p>
-        <p>• 团队合作时寻找能互补这些能力短板的人</p>
-      </div>
-    `;
+    if (enrichedDims.length >= 2) {
+      const weakest = enrichedDims[enrichedDims.length - 1];
+      const secondWeakest = enrichedDims[enrichedDims.length - 2];
+      html += `
+        <div class="report-section">
+          <h3>⚠️ 能力盲区预警</h3>
+          <p>你的<strong style="color:#FF6B6B;">${weakest.name}（${weakest.score}分）</strong>和<strong style="color:#FF6B6B;">${secondWeakest.name}（${secondWeakest.score}分）</strong>相对较弱，这并不代表你不擅长，只是相比你的优势维度需要更多关注：</p>
+          <p style="margin-top:8px;">建议：</p>
+          <p>• 在选专业时避免以这两个能力为核心竞争力的方向</p>
+          <p>• 有意识地在日常生活中练习这两个维度的相关技能</p>
+          <p>• 团队合作时寻找能互补这些能力短板的人</p>
+        </div>
+      `;
+    }
 
-    // --- 6. AI总结（如果有） ---
+    // --- 6. AI总结 ---
     if (summary) {
       html += `
         <div class="report-section" style="border-color:rgba(108,92,231,0.3);background:rgba(108,92,231,0.05);">
@@ -194,9 +201,15 @@ const Report = {
 
     container.innerHTML = html;
 
-    // 重新绘制完整报告中的雷达图
+    // 绘制雷达图
     setTimeout(() => {
-      RadarChart.draw("radar-chart-full", allScores);
-    }, 200);
+      const canvas = document.getElementById("radar-chart-full");
+      if (canvas && Object.keys(allScores).length > 0) {
+        RadarChart.draw("radar-chart-full", allScores);
+        console.log("[Report] Radar chart drawn");
+      } else {
+        console.warn("[Report] Radar chart skipped - canvas:", !!canvas, "scores:", Object.keys(allScores).length);
+      }
+    }, 300);
   }
 };
