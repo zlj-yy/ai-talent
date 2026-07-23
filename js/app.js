@@ -18,6 +18,17 @@ const App = {
   init() {
     this.bindKeyboard();
     this.showScreen("home");
+    this._trackVisit();
+  },
+
+  _trackVisit() {
+    // 匿名访问统计，仅记录页面浏览
+    try {
+      fetch(API.BASE_URL + "/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      }).catch(() => {});
+    } catch(e) {}
   },
 
   // ==================== 屏幕切换 ====================

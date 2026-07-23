@@ -5,9 +5,11 @@ AI天赋地图 — FastAPI 入口
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import CORS_ORIGINS, HOST, PORT
+from middleware import rate_limit_middleware
 
 from routers.report import router as report_router
 from routers.payment import router as payment_router
+from routers.stats import router as stats_router
 
 app = FastAPI(
     title="AI天赋地图 API",
@@ -24,9 +26,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 频率限制（CORS 之后，路由之前）
+app.middleware("http")(rate_limit_middleware)
+
 # 注册路由
 app.include_router(report_router)
 app.include_router(payment_router)
+app.include_router(stats_router)
 
 
 @app.get("/")

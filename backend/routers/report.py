@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional
 from services.deepseek import deepseek_service
+from routers.stats import increment_report_count
 
 router = APIRouter(prefix="/api", tags=["report"])
 
@@ -55,6 +56,7 @@ async def generate_report(req: ReportRequest):
     report = await deepseek_service.generate_report(req.scores)
 
     if report:
+        increment_report_count()
         return ReportResponse(
             success=True,
             data=report,
