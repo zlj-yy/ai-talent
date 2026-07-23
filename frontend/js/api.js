@@ -4,7 +4,7 @@
 
 const API = {
   // 后端地址（开发时指向本地，部署后改为实际域名）
-  BASE_URL: "http://localhost:8000",
+  BASE_URL: "https://ai-talent-e6og.onrender.com",
 
   /**
    * 调用后端生成AI报告
