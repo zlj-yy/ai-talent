@@ -56,7 +56,28 @@ const Report = {
     loading.style.display = "none";
     document.getElementById("report-actions").style.display = "flex";
 
-    const { persona, allDimensions, majors, growthPlan } = reportData;
+    const { persona, allDimensions, majors, growthPlan, summary } = reportData;
+
+    // 用 DIMENSION_NAMES 补齐维度信息（AI返回的数据缺少icon/name/color）
+    const enrichedDims = allDimensions.map(dim => {
+      const meta = DIMENSION_NAMES[dim.key] || {};
+      return {
+        ...dim,
+        icon: dim.icon || meta.icon || "📊",
+        name: dim.name || meta.name || dim.key,
+        color: dim.color || meta.color || "#9898B0",
+        description: dim.analysis || dim.description || ""
+      };
+    });
+
+    // 构建雷达图需要的得分对象
+    const allScores = {};
+    enrichedDims.forEach(dim => {
+      allScores[dim.key] = dim.score;
+    });
+
+    // 按分数降序排列
+    enrichedDims.sort((a, b) => b.score - a.score);
 
     let html = "";
 
@@ -74,12 +95,18 @@ const Report = {
           </span>
         </div>
         <p style="margin-top:16px;">${persona.description}</p>
+        <p style="margin-top:8px;font-size:0.85rem;color:var(--primary-light);">
+          <strong>核心优势：</strong>${persona.strengths ? persona.strengths.join('、') : ''}
+        </p>
+        <p style="font-size:0.85rem;color:#FF6B6B;">
+          <strong>注意盲区：</strong>${persona.watchOut ? persona.watchOut.join('、') : ''}
+        </p>
       </div>
     `;
 
     // --- 2. 逐维度详细解读 ---
     html += `<div class="report-section"><h3>📊 维度逐一解读</h3>`;
-    allDimensions.forEach((dim, i) => {
+    enrichedDims.forEach((dim) => {
       const level = dim.score >= 80 ? "🔥 突出优势" : dim.score >= 60 ? "👍 良好水平" : dim.score >= 40 ? "📈 发展空间" : "⚠️ 需要关注";
       html += `
         <div style="margin-bottom:16px;">
@@ -131,8 +158,8 @@ const Report = {
     html += `</div></div>`;
 
     // --- 5. 盲区预警 ---
-    const weakest = allDimensions[allDimensions.length - 1];
-    const secondWeakest = allDimensions[allDimensions.length - 2];
+    const weakest = enrichedDims[enrichedDims.length - 1];
+    const secondWeakest = enrichedDims[enrichedDims.length - 2];
     html += `
       <div class="report-section">
         <h3>⚠️ 能力盲区预警</h3>
@@ -144,7 +171,17 @@ const Report = {
       </div>
     `;
 
-    // --- 6. 下一步行动 ---
+    // --- 6. AI总结（如果有） ---
+    if (summary) {
+      html += `
+        <div class="report-section" style="border-color:rgba(108,92,231,0.3);background:rgba(108,92,231,0.05);">
+          <h3>💬 AI 导师寄语</h3>
+          <p>${summary}</p>
+        </div>
+      `;
+    }
+
+    // --- 7. 下一步行动 ---
     html += `
       <div class="report-section" style="border-color:rgba(108,92,231,0.3);background:rgba(108,92,231,0.05);">
         <h3>🚀 你的下一步行动</h3>
@@ -159,7 +196,7 @@ const Report = {
 
     // 重新绘制完整报告中的雷达图
     setTimeout(() => {
-      RadarChart.draw("radar-chart-full", reportData.allScores || {});
-    }, 100);
+      RadarChart.draw("radar-chart-full", allScores);
+    }, 200);
   }
 };
