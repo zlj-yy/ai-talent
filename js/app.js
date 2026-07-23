@@ -198,29 +198,74 @@ const App = {
   // ==================== 分享 ====================
   shareReport() {
     const isWechat = /MicroMessenger/i.test(navigator.userAgent);
+    const shareData = {
+      title: "AI天赋地图 — 我的能力画像",
+      desc: "我刚完成了多元智能测评，发现了自己的隐藏优势！你也来测测？",
+      link: window.location.href,
+      imgUrl: window.location.origin + "/assets/favicon.svg"
+    };
 
     if (isWechat) {
-      // 微信浏览器：无法直接调起分享，引导用户点击右上角 ···
-      document.getElementById("modal-share-guide").classList.add("active");
+      // 微信浏览器：尝试调起 WeixinJSBridge（部分版本无需 SDK）
+      this._wechatShare(shareData);
     } else if (navigator.share) {
       // 现代浏览器：使用 Web Share API
       navigator.share({
-        title: "AI天赋地图 — 我的能力画像",
-        text: "我刚完成了多元智能测评，发现了自己的隐藏优势！你也来测测？",
-        url: window.location.href
+        title: shareData.title,
+        text: shareData.desc,
+        url: shareData.link
       }).catch(() => {
-        // 用户取消分享或失败，降级到复制链接
         this.copyShareLink();
       });
     } else {
-      // 不支持 Web Share：直接复制链接
       this.copyShareLink();
     }
   },
 
+  _wechatShare(data) {
+    // 尝试 WeixinJSBridge 直接调起分享面板
+    const tryBridge = () => {
+      if (typeof WeixinJSBridge !== "undefined" && WeixinJSBridge.invoke) {
+        // 分享给朋友
+        WeixinJSBridge.invoke("sendAppMessage", {
+          title: data.title,
+          desc: data.desc,
+          link: data.link,
+          img_url: data.imgUrl
+        }, () => {});
+        // 同时显示引导，因为 bridge 可能静默失败
+        this._showShareGuide();
+        return true;
+      }
+      return false;
+    };
+
+    if (!tryBridge()) {
+      // WeixinJSBridge 还没 ready，等一下再试
+      if (document.readyState === "complete") {
+        // DOM 已加载完，bridge 可能还没注入，等待事件
+        var fired = false;
+        var onReady = function() {
+          if (!fired) { fired = true; tryBridge(); }
+        };
+        document.addEventListener("WeixinJSBridgeReady", onReady, { once: true });
+        // 300ms 后无论如何显示引导
+        setTimeout(function() {
+          if (!fired) { fired = true; document.removeEventListener("WeixinJSBridgeReady", onReady); }
+          this._showShareGuide();
+        }.bind(this), 350);
+      } else {
+        this._showShareGuide();
+      }
+    }
+  },
+
+  _showShareGuide() {
+    document.getElementById("modal-share-guide").classList.add("active");
+  },
+
   copyShareLink() {
     const url = window.location.href;
-    // 优先用 Clipboard API
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(() => {
         this.showToast("链接已复制，去粘贴分享吧 ✨");
@@ -233,14 +278,15 @@ const App = {
   },
 
   showCopyFallback(url) {
-    // 兜底：选中文本让用户手动复制
     const input = document.createElement("textarea");
     input.value = url;
     input.style.position = "fixed";
     input.style.left = "-9999px";
+    input.style.top = "0";
     document.body.appendChild(input);
+    input.focus();
     input.select();
-    document.execCommand("copy");
+    try { document.execCommand("copy"); } catch(e) {}
     document.body.removeChild(input);
     this.showToast("链接已复制，去粘贴分享吧 ✨");
   },
@@ -276,16 +322,35 @@ const App = {
       return;
     }
 
+    this._ensureHtml2canvas(() => {
+      this._doSaveReport(el);
+    });
+  },
+
+  _ensureHtml2canvas(cb) {
+    if (typeof html2canvas !== "undefined") return cb();
+
+    // html2canvas 没加载成功，尝试备用 CDN
+    this.showToast("正在加载组件...");
+    var s = document.createElement("script");
+    s.src = "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js";
+    s.onload = function() { cb(); };
+    s.onerror = function() {
+      document.querySelector(".toast-msg")?.remove();
+      alert("图片生成组件加载失败，请检查网络后重试。");
+    };
+    document.head.appendChild(s);
+  },
+
+  _doSaveReport(el) {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     this.showToast("正在生成报告图片...");
 
-    // 先隐藏 actions 按钮区域，避免截进图片里
     const actions = document.getElementById("report-actions");
     const actionsDisplay = actions ? actions.style.display : "";
     if (actions) actions.style.display = "none";
 
-    // 截图前让报告区域撑开，去掉可能的滚动裁剪
     const container = document.getElementById("report-container");
     const origOverflow = container ? container.style.overflow : "";
     const origMaxH = container ? container.style.maxHeight : "";
@@ -295,12 +360,11 @@ const App = {
     }
 
     html2canvas(el, {
-      backgroundColor: "#0F0F1A",   // 和页面背景色一致
-      scale: isMobile ? 2 : 1.5,    // 手机端 2x 高清
+      backgroundColor: "#0F0F1A",
+      scale: isMobile ? 2 : 1.5,
       useCORS: true,
       logging: false
     }).then(canvas => {
-      // 恢复原样式
       if (actions) actions.style.display = actionsDisplay;
       if (container) {
         container.style.overflow = origOverflow;
@@ -311,14 +375,11 @@ const App = {
       this._reportImageData = imgData;
 
       if (isMobile) {
-        // 手机端：弹窗展示，用户长按保存
         document.getElementById("report-image").src = imgData;
         document.getElementById("modal-image-preview").classList.add("active");
-        // 手机端隐藏下载按钮，引导长按
         document.getElementById("btn-download-image").style.display = "none";
         document.querySelector(".toast-msg")?.remove();
       } else {
-        // 桌面端：直接触发下载
         this.downloadImage(imgData);
         document.querySelector(".toast-msg")?.remove();
       }

@@ -737,37 +737,24 @@ body {
 }
 
 /* 微信分享引导弹窗 */
-.share-guide-overlay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-.share-guide-content {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 28px 22px 22px;
-  max-width: 300px;
-  width: 88%;
-  text-align: center;
-  animation: fadeIn 0.3s ease;
+.share-guide-card {
   position: relative;
+  padding: 28px 20px 18px;
+  max-width: 300px;
 }
 .share-guide-arrow {
   font-size: 2.6rem;
   animation: shareArrowBounce 0.8s ease-in-out infinite alternate;
   position: absolute;
-  top: -50px;
-  right: 16px;
+  top: -48px;
+  right: 14px;
 }
 @keyframes shareArrowBounce {
   from { transform: translateY(0); }
   to   { transform: translateY(-10px); }
 }
-.share-guide-content h3 {
-  margin: 4px 0 12px;
+.share-guide-card h3 {
+  margin: 4px 0 10px;
   font-size: 1.05rem;
 }
 .share-dots {
@@ -780,7 +767,7 @@ body {
   font-weight: 700;
   color: var(--text);
 }
-.share-guide-content p {
+.share-guide-card p {
   color: var(--text-secondary);
   font-size: 0.9rem;
   margin-bottom: 6px;
@@ -789,7 +776,15 @@ body {
 .share-guide-tip {
   color: var(--text-muted);
   font-size: 0.82rem;
-  margin-top: 10px;
+  margin-top: 8px;
+}
+.share-guide-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.share-guide-buttons .btn-modal {
+  flex: 1;
 }
 
 /* Toast 消息 */

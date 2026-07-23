@@ -222,19 +222,29 @@
 
   <!-- ==================== 微信分享引导弹窗 ==================== -->
   <div id="modal-share-guide" class="modal">
-    <div class="share-guide-overlay" onclick="App.closeShareGuide()">
-      <div class="share-guide-content" onclick="event.stopPropagation()">
-        <div class="share-guide-arrow">👆</div>
-        <h3>点击右上角 <span class="share-dots">···</span></h3>
-        <p>选择「<strong>分享给朋友</strong>」或「<strong>分享到朋友圈</strong>」</p>
-        <div class="share-guide-tip">让你的朋友也来发现自己隐藏的天赋吧 ✨</div>
-        <button class="btn-modal btn-confirm-pay" onclick="App.closeShareGuide()" style="margin-top:16px;width:100%;">我知道了</button>
+    <div class="modal-content share-guide-card">
+      <div class="share-guide-arrow">👆</div>
+      <h3>点击右上角 <span class="share-dots">···</span></h3>
+      <p>选择「<strong>分享给朋友</strong>」或「<strong>分享到朋友圈</strong>」</p>
+      <div class="share-guide-tip">让你的朋友也来发现自己隐藏的天赋吧 ✨</div>
+      <div class="share-guide-buttons">
+        <button class="btn-modal btn-confirm-pay" onclick="App.closeShareGuide()">我知道了</button>
+        <button class="btn-modal btn-cancel" onclick="App.copyShareLink();App.closeShareGuide()">📋 复制链接</button>
       </div>
     </div>
   </div>
 
   <!-- JS -->
-  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <!-- html2canvas: BootCDN（国内可访问），hertzen 作 fallback -->
+  <script src="https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script>
+    // html2canvas CDN fallback：如果 BootCDN 也挂了，动态加载备用源
+    if (typeof html2canvas === 'undefined') {
+      var s = document.createElement('script');
+      s.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
+      document.head.appendChild(s);
+    }
+  </script>
   <script src="js/questions.js"></script>
   <script src="js/scoring.js"></script>
   <script src="js/chart.js"></script>
