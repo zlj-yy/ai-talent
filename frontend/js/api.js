@@ -3,7 +3,7 @@
  */
 
 const API = {
-  // 后端地址（开发时指向本地，部署后改为实际域名）
+  // 后端地址
   BASE_URL: "https://ai-talent-e6og.onrender.com",
 
   /**
@@ -13,9 +13,9 @@ const API = {
    */
   async generateReport(scores) {
     try {
-      // 5秒超时，超时则使用本地回退
+      // 60秒超时（AI生成报告需要时间）
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       const response = await fetch(`${this.BASE_URL}/api/generate-report`, {
         method: "POST",
@@ -30,7 +30,13 @@ const API = {
         throw new Error(`API error: ${response.status}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      // 后端返回 { success, data, generatedBy }，解包取 data
+      if (result.success && result.data) {
+        result.data.generatedBy = result.generatedBy || "ai";
+        return result.data;
+      }
+      return this._fallbackReport(scores);
     } catch (err) {
       console.warn("AI报告生成失败，使用本地回退:", err.message);
 
@@ -41,7 +47,6 @@ const API = {
 
   /**
    * 创建支付订单
-   * @returns {Promise<Object>} { orderId, qrCodeUrl }
    */
   async createOrder() {
     try {
@@ -49,11 +54,7 @@ const API = {
         method: "POST",
         headers: { "Content-Type": "application/json" }
       });
-
-      if (!response.ok) {
-        throw new Error(`Payment error: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`Payment error: ${response.status}`);
       return await response.json();
     } catch (err) {
       console.warn("支付接口不可用:", err.message);
@@ -63,8 +64,6 @@ const API = {
 
   /**
    * 验证支付状态
-   * @param {string} orderId
-   * @returns {Promise<boolean>}
    */
   async verifyPayment(orderId) {
     try {
@@ -73,29 +72,22 @@ const API = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId })
       });
-
       if (!response.ok) return false;
       const data = await response.json();
       return data.paid === true;
     } catch (err) {
-      console.warn("支付验证失败:", err.message);
       return false;
     }
   },
 
   /**
-   * 本地回退报告生成（无需后端，离线可用）
-   * 当后端/AI不可用时作为备选方案
+   * 本地回退报告生成
    */
   _fallbackReport(scores) {
     const top = Scoring.getTopThree(scores);
     const persona = Scoring.getPersona(scores);
     const sorted = Scoring.getSortedScores(scores);
-
-    // 基于得分模式匹配专业推荐
     const majors = this._matchMajors(scores);
-
-    // 生成成长计划
     const growthPlan = this._generateGrowthPlan(scores);
 
     return {
@@ -109,14 +101,10 @@ const API = {
     };
   },
 
-  /**
-   * 基于得分模式匹配专业推荐
-   */
   _matchMajors(scores) {
     const top = Scoring.getTopThree(scores);
     const primaryKey = top[0].key;
 
-    // 专业数据库（基于多元智能与中国大学专业设置的映射）
     const majorDB = {
       linguistic: [
         { name: "新闻传播学", stars: 5, reason: "你的语言优势是新闻和传播的核心竞争力" },
@@ -176,10 +164,7 @@ const API = {
       ]
     };
 
-    // 主要推荐：基于最强维度
     const primary = majorDB[primaryKey] || majorDB["logical"];
-
-    // 次要推荐：基于第二优势维度
     const secondaryKey = top[1]?.key || "linguistic";
     const secondary = (majorDB[secondaryKey] || majorDB["linguistic"])
       .filter(m => !primary.some(p => p.name === m.name))
@@ -188,15 +173,11 @@ const API = {
     return [...primary.slice(0, 6), ...secondary.map(m => ({...m, stars: Math.max(1, m.stars - 1)}))];
   },
 
-  /**
-   * 生成12个月成长计划
-   */
   _generateGrowthPlan(scores) {
     const sorted = Scoring.getSortedScores(scores);
     const strongest = sorted[0];
     const weakest = sorted[sorted.length - 1];
 
-    // 基于最强维度推荐学习内容
     const learningMap = {
       linguistic:    ["精读10本经典著作并写读书笔记", "参加辩论/演讲社团", "尝试日更写作100天"],
       logical:       ["学习Python编程基础", "刷LeetCode算法题（每周3题）", "阅读《思考，快与慢》"],
